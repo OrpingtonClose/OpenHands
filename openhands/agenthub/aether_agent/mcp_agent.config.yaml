@@ -1,0 +1,13 @@
+execution_engine: asyncio
+
+mcp:
+  servers:
+    filesystem:
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
+    bash:
+      command: "python"
+      args: ["-m", "openhands.agenthub.aether_agent.mcp_servers.bash_server"]
+    fetch:
+      command: "uvx"
+      args: ["mcp-server-fetch"]
