@@ -4,7 +4,7 @@ This server is used by mcp-agent's agents to execute bash commands
 inside the container and return stdout + stderr.
 """
 
-import subprocess
+import asyncio
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -42,20 +42,25 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
     command = arguments.get('command', '')
     try:
-        result = subprocess.run(
+        proc = await asyncio.create_subprocess_shell(
             command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=120,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
-        output = (
-            f'Exit code: {result.returncode}\n'
-            f'Stdout:\n{result.stdout}\n'
-            f'Stderr:\n{result.stderr}'
-        )
-    except subprocess.TimeoutExpired:
-        output = 'Error: Command timed out after 120 seconds.'
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=120
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()  # reap the process
+            output = 'Error: Command timed out after 120 seconds.'
+        else:
+            output = (
+                f'Exit code: {proc.returncode}\n'
+                f'Stdout:\n{stdout_bytes.decode()}\n'
+                f'Stderr:\n{stderr_bytes.decode()}'
+            )
     except Exception as exc:
         output = f'Error executing command: {exc}'
 
