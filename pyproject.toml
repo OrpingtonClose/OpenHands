@@ -53,6 +53,7 @@ dependencies = [
   "litellm!=1.64.4,!=1.67.*,>=1.74.3",
   "lmnr>=0.7.20",
   "mcp>=1.25",
+  "mcp-agent[anthropic,openai]>=0.2.6",
   "memory-profiler>=0.61",
   "numpy",
   "openai==2.8",
@@ -222,6 +223,7 @@ python-pptx = "*"
 pylatexenc = "*"
 python-docx = "*"
 bashlex = "^0.18"
+mcp-agent = { extras = [ "anthropic", "openai" ], version = ">=0.2.6" }
 
 # Explicitly pinned packages for latest versions
 pypdf = "^6.9.2"
