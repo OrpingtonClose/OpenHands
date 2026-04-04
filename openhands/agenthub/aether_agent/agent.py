@@ -8,6 +8,7 @@ sub-agents that have access to filesystem, bash, and fetch MCP servers.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import os
 from typing import TYPE_CHECKING
 
@@ -79,18 +80,12 @@ class AetherAgent(Agent):
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                # If already inside an event loop (common in OpenHands),
-                # schedule the coroutine and block on the future.
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    loop.run_in_executor(
-                        pool, lambda: asyncio.run(self._run_orchestrator(user_task))
-                    )
-                    # We need to block here – use a new loop in the thread.
-                    self._orchestrator_result = asyncio.run(
-                        self._run_orchestrator(user_task)
-                    )
+                # Already inside an event loop (always true in OpenHands).
+                # Run the async orchestrator in a dedicated thread that
+                # creates its own event loop via asyncio.run().
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(asyncio.run, self._run_orchestrator(user_task))
+                    self._orchestrator_result = future.result()
             else:
                 self._orchestrator_result = loop.run_until_complete(
                     self._run_orchestrator(user_task)
@@ -127,18 +122,17 @@ class AetherAgent(Agent):
         from openhands.agenthub.aether_agent.event_bridge import log_bridge_message
 
         # Read configuration values from the AgentConfig extended section.
-        ext = getattr(self.config, 'extended', None)
-        provider = ext.get('provider', 'anthropic') if ext else 'anthropic'
-        model = (
-            ext.get('model', 'claude-sonnet-4-20250514')
-            if ext
-            else 'claude-sonnet-4-20250514'
-        )
-        max_iterations = int(ext.get('max_iterations', 20)) if ext else 20
-        max_tokens = int(ext.get('max_tokens', 100000)) if ext else 100000
-        max_cost = float(ext.get('max_cost', 5.0)) if ext else 5.0
-        enable_parallel = bool(ext.get('enable_parallel', True)) if ext else True
-        enable_critic = bool(ext.get('enable_critic', False)) if ext else False
+        # ExtendedConfig is a Pydantic RootModel[dict] — access the
+        # underlying dict via .root to use .get() safely.
+        raw_ext = getattr(self.config, 'extended', None)
+        _ext: dict = raw_ext.root if raw_ext else {}
+        provider = _ext.get('provider', 'anthropic')
+        model = _ext.get('model', 'claude-sonnet-4-20250514')
+        max_iterations = int(_ext.get('max_iterations', 20))
+        max_tokens = int(_ext.get('max_tokens', 100000))
+        max_cost = float(_ext.get('max_cost', 5.0))
+        enable_parallel = bool(_ext.get('enable_parallel', True))
+        enable_critic = bool(_ext.get('enable_critic', False))
 
         log_bridge_message('info', 'Initialising MCPApp…')
 
