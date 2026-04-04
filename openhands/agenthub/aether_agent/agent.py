@@ -77,21 +77,21 @@ class AetherAgent(Agent):
 
         logger.info(f'[AetherAgent] Starting orchestration for: {user_task[:120]}…')
 
+        # Determine whether we are already inside a running event loop.
+        loop: asyncio.AbstractEventLoop | None = None
         try:
             loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Already inside an event loop (always true in OpenHands).
-                # Run the async orchestrator in a dedicated thread that
-                # creates its own event loop via asyncio.run().
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    future = pool.submit(asyncio.run, self._run_orchestrator(user_task))
-                    self._orchestrator_result = future.result()
-            else:
-                self._orchestrator_result = loop.run_until_complete(
-                    self._run_orchestrator(user_task)
-                )
         except RuntimeError:
-            # No running loop — just run directly.
+            loop = None
+
+        if loop is not None and loop.is_running():
+            # Already inside an event loop (always true in OpenHands).
+            # Run the async orchestrator in a dedicated thread that
+            # creates its own event loop via asyncio.run().
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, self._run_orchestrator(user_task))
+                self._orchestrator_result = future.result()
+        else:
             self._orchestrator_result = asyncio.run(self._run_orchestrator(user_task))
 
         msg = MessageAction(content=self._orchestrator_result or '')
@@ -197,6 +197,7 @@ class AetherAgent(Agent):
                 target = wrap_with_critic(
                     orchestrator=orchestrator,
                     provider=provider,
+                    model=model,
                     context=context,
                 )
                 log_bridge_message('info', 'Critic wrapper enabled.')

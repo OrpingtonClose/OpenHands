@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 def wrap_with_critic(
     orchestrator: 'DeepOrchestrator',
     provider: str = 'anthropic',
+    model: str | None = None,
     context: 'Context | None' = None,
     min_rating: int = 2,
     max_refinements: int = 2,
@@ -35,6 +36,7 @@ def wrap_with_critic(
     Args:
         orchestrator: The ``DeepOrchestrator`` instance to wrap.
         provider: LLM provider for the evaluator (e.g. ``"anthropic"``).
+        model: Model identifier for the evaluator.
         context: mcp-agent application context.
         min_rating: Minimum acceptable ``QualityRating`` value
             (0=POOR, 1=FAIR, 2=GOOD, 3=EXCELLENT).
@@ -57,5 +59,6 @@ def wrap_with_critic(
         min_rating=min_rating,
         max_refinements=max_refinements,
         provider=provider,
+        model=model,
         context=context,
     )
