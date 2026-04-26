@@ -1,158 +1,97 @@
-"""Google OAuth2 authentication for self-hosted OpenHands."""
+"""Cloudflare Access authentication for self-hosted OpenHands.
 
-import hashlib
+When a Cloudflare Access application is placed in front of OpenHands,
+every request carries a signed JWT in the ``Cf-Access-Jwt-Assertion``
+header. This module validates that JWT against Cloudflare's public
+signing keys and extracts the authenticated user's email.
+
+Required environment variables:
+    CF_ACCESS_TEAM_NAME  – your Cloudflare Access team/org name
+                           (e.g. ``mycompany`` → keys fetched from
+                           ``https://mycompany.cloudflareaccess.com/cdn-cgi/access/certs``)
+    CF_ACCESS_AUD        – the Application Audience (AUD) tag from
+                           Cloudflare Access (found in the app config)
+
+Optional:
+    CF_ACCESS_ALLOWED_EMAILS – comma-separated allowlist of emails.
+                               If empty, any Cloudflare-authenticated
+                               email is accepted.
+"""
+
 import os
-import secrets
 import time
 
 import jwt
-from authlib.integrations.starlette_client import OAuth
-from fastapi import APIRouter, Request, Response
-from fastapi.responses import JSONResponse, RedirectResponse
-from starlette.config import Config
+import requests
 
-GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
-GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
-GOOGLE_AUTH_SECRET_KEY = os.getenv('GOOGLE_AUTH_SECRET_KEY', secrets.token_hex(32))
-GOOGLE_AUTH_ALLOWED_EMAILS = os.getenv('GOOGLE_AUTH_ALLOWED_EMAILS', '')
+CF_ACCESS_TEAM_NAME = os.getenv('CF_ACCESS_TEAM_NAME', '')
+CF_ACCESS_AUD = os.getenv('CF_ACCESS_AUD', '')
+CF_ACCESS_ALLOWED_EMAILS = os.getenv('CF_ACCESS_ALLOWED_EMAILS', '')
 
-COOKIE_NAME = 'oh_google_auth'
-TOKEN_EXPIRY_SECONDS = 60 * 60 * 24 * 7  # 7 days
+CF_ACCESS_HEADER = 'Cf-Access-Jwt-Assertion'
+
+_cached_public_keys: list | None = None
+_keys_fetched_at: float = 0.0
+_KEYS_TTL = 3600  # re-fetch keys every hour
 
 
-def is_google_auth_enabled() -> bool:
-    return bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+def is_cloudflare_auth_enabled() -> bool:
+    return bool(CF_ACCESS_TEAM_NAME and CF_ACCESS_AUD)
+
+
+# Keep the old name as an alias so existing imports still work.
+is_google_auth_enabled = is_cloudflare_auth_enabled
 
 
 def _get_allowed_emails() -> set[str]:
-    if not GOOGLE_AUTH_ALLOWED_EMAILS:
+    if not CF_ACCESS_ALLOWED_EMAILS:
         return set()
-    return {
-        e.strip().lower() for e in GOOGLE_AUTH_ALLOWED_EMAILS.split(',') if e.strip()
-    }
+    return {e.strip().lower() for e in CF_ACCESS_ALLOWED_EMAILS.split(',') if e.strip()}
 
 
-def _create_session_token(user_email: str, user_name: str) -> str:
-    payload = {
-        'email': user_email,
-        'name': user_name,
-        'iat': int(time.time()),
-        'exp': int(time.time()) + TOKEN_EXPIRY_SECONDS,
-    }
-    return jwt.encode(payload, GOOGLE_AUTH_SECRET_KEY, algorithm='HS256')
+def _get_public_keys() -> list:
+    """Fetch (and cache) Cloudflare Access public signing keys."""
+    global _cached_public_keys, _keys_fetched_at
+
+    now = time.time()
+    if _cached_public_keys is not None and (now - _keys_fetched_at) < _KEYS_TTL:
+        return _cached_public_keys
+
+    certs_url = (
+        f'https://{CF_ACCESS_TEAM_NAME}.cloudflareaccess.com/cdn-cgi/access/certs'
+    )
+    resp = requests.get(certs_url, timeout=10)
+    resp.raise_for_status()
+    jwks = resp.json()
+
+    keys = []
+    for key_data in jwks.get('keys', []):
+        keys.append(jwt.algorithms.RSAAlgorithm.from_jwk(key_data))
+
+    _cached_public_keys = keys
+    _keys_fetched_at = now
+    return keys
 
 
-def verify_session_token(token: str) -> dict | None:
-    try:
-        return jwt.decode(token, GOOGLE_AUTH_SECRET_KEY, algorithms=['HS256'])
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+def verify_cf_token(token: str) -> dict | None:
+    """Validate a Cloudflare Access JWT and return its claims, or None."""
+    if not is_cloudflare_auth_enabled():
         return None
 
-
-def _build_oauth() -> OAuth:
-    config = Config(
-        environ={
-            'GOOGLE_CLIENT_ID': GOOGLE_CLIENT_ID,
-            'GOOGLE_CLIENT_SECRET': GOOGLE_CLIENT_SECRET,
-        }
-    )
-    oauth = OAuth(config)
-    oauth.register(
-        name='google',
-        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-        client_kwargs={'scope': 'openid email profile'},
-    )
-    return oauth
-
-
-_oauth: OAuth | None = None
-
-
-def _get_oauth() -> OAuth:
-    global _oauth
-    if _oauth is None:
-        _oauth = _build_oauth()
-    return _oauth
-
-
-router = APIRouter(prefix='/auth/google', tags=['Google Auth'])
-
-
-@router.get('/login')
-async def google_login(request: Request) -> Response:
-    """Redirect to Google OAuth2 consent screen."""
-    if not is_google_auth_enabled():
-        return JSONResponse(
-            status_code=404, content={'error': 'Google auth not configured'}
-        )
-    oauth = _get_oauth()
-    redirect_uri = str(request.url_for('google_callback'))
-    # Generate a CSRF state token
-    state = hashlib.sha256(secrets.token_bytes(32)).hexdigest()
-    request.session['oauth_state'] = state
-    return await oauth.google.authorize_redirect(request, redirect_uri, state=state)
-
-
-@router.get('/callback')
-async def google_callback(request: Request) -> Response:
-    """Handle Google OAuth2 callback."""
-    if not is_google_auth_enabled():
-        return JSONResponse(
-            status_code=404, content={'error': 'Google auth not configured'}
-        )
-    oauth = _get_oauth()
-    token = await oauth.google.authorize_access_token(request)
-    user_info = token.get('userinfo')
-    if not user_info:
-        return JSONResponse(
-            status_code=401, content={'error': 'Failed to get user info'}
-        )
-
-    email = user_info.get('email', '').lower()
-    name = user_info.get('name', '')
-
-    allowed = _get_allowed_emails()
-    if allowed and email not in allowed:
-        return JSONResponse(
-            status_code=403,
-            content={'error': f'Email {email} is not allowed'},
-        )
-
-    session_token = _create_session_token(email, name)
-
-    response = RedirectResponse(url='/')
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=session_token,
-        httponly=True,
-        samesite='lax',
-        max_age=TOKEN_EXPIRY_SECONDS,
-        secure=request.url.scheme == 'https',
-    )
-    return response
-
-
-@router.post('/logout')
-async def google_logout() -> Response:
-    """Clear the auth cookie."""
-    response = JSONResponse(content={'message': 'Logged out'})
-    response.delete_cookie(key=COOKIE_NAME)
-    return response
-
-
-@router.get('/status')
-async def google_auth_status(request: Request) -> JSONResponse:
-    """Check if the user is authenticated via Google."""
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        return JSONResponse(status_code=401, content={'authenticated': False})
-    claims = verify_session_token(token)
-    if not claims:
-        return JSONResponse(status_code=401, content={'authenticated': False})
-    return JSONResponse(
-        content={
-            'authenticated': True,
-            'email': claims.get('email'),
-            'name': claims.get('name'),
-        }
-    )
+    keys = _get_public_keys()
+    for key in keys:
+        try:
+            claims = jwt.decode(
+                token,
+                key=key,
+                audience=CF_ACCESS_AUD,
+                algorithms=['RS256'],
+            )
+            email = claims.get('email', '').lower()
+            allowed = _get_allowed_emails()
+            if allowed and email not in allowed:
+                return None
+            return claims
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+            continue
+    return None

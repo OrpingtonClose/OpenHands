@@ -1,11 +1,11 @@
-"""Google OAuth2-backed UserAuth implementation for self-hosted OpenHands."""
+"""Cloudflare Access-backed UserAuth implementation for self-hosted OpenHands."""
 
 from dataclasses import dataclass
 
 from fastapi import Request
 from pydantic import SecretStr
 
-from openhands.app_server.auth.google_auth import COOKIE_NAME, verify_session_token
+from openhands.app_server.auth.google_auth import CF_ACCESS_HEADER, verify_cf_token
 from openhands.integrations.provider import PROVIDER_TOKEN_TYPE
 from openhands.server import shared
 from openhands.server.settings import Settings
@@ -17,7 +17,7 @@ from openhands.storage.settings.settings_store import SettingsStore
 
 @dataclass
 class GoogleUserAuth(UserAuth):
-    """UserAuth backed by a Google OAuth2 session cookie (JWT)."""
+    """UserAuth backed by a Cloudflare Access JWT (Cf-Access-Jwt-Assertion)."""
 
     _email: str | None = None
     _name: str | None = None
@@ -92,15 +92,15 @@ class GoogleUserAuth(UserAuth):
 
     @classmethod
     async def get_instance(cls, request: Request) -> 'UserAuth':
-        token = request.cookies.get(COOKIE_NAME)
+        token = request.headers.get(CF_ACCESS_HEADER)
         if not token:
-            raise ValueError('No Google auth cookie found')
-        claims = verify_session_token(token)
+            raise ValueError('No Cloudflare Access JWT found')
+        claims = verify_cf_token(token)
         if not claims:
-            raise ValueError('Invalid or expired Google auth token')
+            raise ValueError('Invalid or expired Cloudflare Access token')
         return GoogleUserAuth(
-            _email=claims.get('email'),
-            _name=claims.get('name'),
+            _email=claims.get('email', '').lower(),
+            _name=claims.get('email', '').split('@')[0],
         )
 
     @classmethod

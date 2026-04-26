@@ -18,7 +18,7 @@ class AuthService {
   ): Promise<boolean> {
     if (appMode === "oss") {
       if (googleAuthEnabled) {
-        const { data } = await openHands.get("/api/v1/auth/google/status");
+        const { data } = await openHands.get("/api/v1/auth/cf/status");
         return data.authenticated === true;
       }
       return true;
@@ -55,7 +55,8 @@ class AuthService {
     googleAuthEnabled?: boolean,
   ): Promise<void> {
     if (appMode === "oss" && googleAuthEnabled) {
-      await openHands.post("/api/v1/auth/google/logout");
+      // Cloudflare Access handles logout; just redirect to clear session
+      window.location.href = "/cdn-cgi/access/logout";
       return;
     }
     const endpoint =

@@ -171,7 +171,9 @@ export function LoginContent({
     !providersConfigured || providersConfigured.length === 0;
 
   const handleGoogleAuth = () => {
-    window.location.href = "/api/v1/auth/google/login";
+    // Cloudflare Access intercepts unauthenticated requests and
+    // redirects to its login page (configured with Google IdP).
+    window.location.href = "/";
   };
 
   const buttonBaseClasses =
