@@ -13514,6 +13514,23 @@
     "uk": "Увійти за допомогою Enterprise SSO",
     "ca": "Inicia sessió amb SSO empresarial"
   },
+  "GOOGLE$SIGN_IN_WITH_GOOGLE": {
+    "en": "Sign in with Google",
+    "ja": "Googleでサインイン",
+    "zh-CN": "使用Google登录",
+    "zh-TW": "使用Google登入",
+    "ko-KR": "Google로 로그인",
+    "de": "Mit Google anmelden",
+    "no": "Logg inn med Google",
+    "it": "Accedi con Google",
+    "pt": "Entrar com Google",
+    "es": "Iniciar sesión con Google",
+    "ar": "تسجيل الدخول باستخدام Google",
+    "fr": "Se connecter avec Google",
+    "tr": "Google ile giriş yap",
+    "uk": "Увійти за допомогою Google",
+    "ca": "Inicia sessió amb Google"
+  },
   "AUTH$SIGN_IN_WITH_IDENTITY_PROVIDER": {
     "en": "Log in to OpenHands",
     "ja": "IDプロバイダーでサインイン",

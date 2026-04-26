@@ -210,13 +210,16 @@ export default function MainApp() {
   const isLoading = config.isLoading || isAuthLoading;
 
   // Only decide to redirect AFTER loading completes
+  const isGoogleAuthOss =
+    config.data?.app_mode === "oss" && config.data?.google_auth_enabled;
+
   const shouldRedirectToLogin =
     !isLoading &&
     !isAuthed &&
     !isAuthError &&
     !isOnIntermediatePage &&
-    config.data?.app_mode === "saas" &&
-    !loginMethodExists;
+    (isGoogleAuthOss ||
+      (config.data?.app_mode === "saas" && !loginMethodExists));
 
   React.useEffect(() => {
     if (shouldRedirectToLogin) {
@@ -248,7 +251,8 @@ export default function MainApp() {
     !isFetchingAuth &&
     !isOnIntermediatePage &&
     config.data?.app_mode === "saas" &&
-    loginMethodExists;
+    loginMethodExists &&
+    !isGoogleAuthOss;
 
   return (
     <div

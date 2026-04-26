@@ -9,7 +9,13 @@
 import os
 
 import socketio
+from starlette.middleware.sessions import SessionMiddleware
 
+from openhands.app_server.auth.google_auth import (
+    GOOGLE_AUTH_SECRET_KEY,
+    is_google_auth_enabled,
+)
+from openhands.app_server.auth.google_auth_middleware import GoogleAuthMiddleware
 from openhands.server.app import app as base_app
 from openhands.server.listen_socket import sio
 from openhands.server.middleware import (
@@ -31,5 +37,9 @@ base_app.add_middleware(
     RateLimitMiddleware,
     rate_limiter=InMemoryRateLimiter(requests=10, seconds=1),
 )
+
+if is_google_auth_enabled():
+    base_app.add_middleware(GoogleAuthMiddleware)
+    base_app.add_middleware(SessionMiddleware, secret_key=GOOGLE_AUTH_SECRET_KEY)
 
 app = socketio.ASGIApp(sio, other_asgi_app=base_app)

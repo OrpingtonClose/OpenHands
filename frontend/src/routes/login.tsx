@@ -48,12 +48,21 @@ export default function LoginPage() {
     navigate(location.pathname, { replace: true, state: {} });
   };
 
-  // Redirect OSS mode users to home
+  // Redirect OSS mode users to home (unless Google auth is enabled)
   React.useEffect(() => {
-    if (!config.isLoading && config.data?.app_mode === "oss") {
+    if (
+      !config.isLoading &&
+      config.data?.app_mode === "oss" &&
+      !config.data?.google_auth_enabled
+    ) {
       navigate("/", { replace: true });
     }
-  }, [config.isLoading, config.data?.app_mode, navigate]);
+  }, [
+    config.isLoading,
+    config.data?.app_mode,
+    config.data?.google_auth_enabled,
+    navigate,
+  ]);
 
   // Redirect authenticated users away from login page
   // Preserve login_method param so useAuthCallback can store it for auto-login
@@ -77,8 +86,10 @@ export default function LoginPage() {
     );
   }
 
-  // Don't render login content if user is authenticated or in OSS mode
-  if (isAuthed || config.data?.app_mode === "oss") {
+  // Don't render login content if user is authenticated or in plain OSS mode
+  const isOssWithoutGoogleAuth =
+    config.data?.app_mode === "oss" && !config.data?.google_auth_enabled;
+  if (isAuthed || isOssWithoutGoogleAuth) {
     return null;
   }
 
@@ -98,6 +109,7 @@ export default function LoginPage() {
           recaptchaBlocked={recaptchaBlocked}
           hasInvitation={hasInvitation}
           buildOAuthStateData={buildOAuthStateData}
+          googleAuthEnabled={config.data?.google_auth_enabled}
         />
       </main>
 

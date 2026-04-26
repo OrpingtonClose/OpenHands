@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import Field
 
+from openhands.app_server.auth.google_auth import is_google_auth_enabled
 from openhands.app_server.web_client.web_client_config_injector import (
     WebClientConfigInjector,
 )
@@ -150,6 +151,7 @@ class DefaultWebClientConfigInjector(WebClientConfigInjector):
     github_app_slug: str | None = Field(default_factory=_get_github_app_slug)
     gitlab_enabled: bool = Field(default_factory=_is_gitlab_enabled)
     slack_enabled: bool = Field(default_factory=_get_slack_enabled)
+    google_auth_enabled: bool = Field(default_factory=is_google_auth_enabled)
 
     async def get_web_client_config(self) -> WebClientConfig:
         from openhands.app_server.config import get_global_config
@@ -169,5 +171,6 @@ class DefaultWebClientConfigInjector(WebClientConfigInjector):
             github_app_slug=self.github_app_slug,
             gitlab_enabled=self.gitlab_enabled,
             slack_enabled=self.slack_enabled,
+            google_auth_enabled=self.google_auth_enabled,
         )
         return result

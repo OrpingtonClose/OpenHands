@@ -9,12 +9,20 @@ class AuthService {
   /**
    * Authenticate with GitHub token
    * @param appMode The application mode (saas or oss)
+   * @param googleAuthEnabled Whether Google auth is enabled (for OSS mode)
    * @returns Response with authentication status and user info if successful
    */
   static async authenticate(
     appMode: WebClientConfig["app_mode"],
+    googleAuthEnabled?: boolean,
   ): Promise<boolean> {
-    if (appMode === "oss") return true;
+    if (appMode === "oss") {
+      if (googleAuthEnabled) {
+        const { data } = await openHands.get("/api/v1/auth/google/status");
+        return data.authenticated === true;
+      }
+      return true;
+    }
 
     // Just make the request, if it succeeds (no exception thrown), return true
     await openHands.post<AuthenticateResponse>("/api/authenticate");
@@ -42,7 +50,14 @@ class AuthService {
    * Logout user from the application
    * @param appMode The application mode (saas or oss)
    */
-  static async logout(appMode: WebClientConfig["app_mode"]): Promise<void> {
+  static async logout(
+    appMode: WebClientConfig["app_mode"],
+    googleAuthEnabled?: boolean,
+  ): Promise<void> {
+    if (appMode === "oss" && googleAuthEnabled) {
+      await openHands.post("/api/v1/auth/google/logout");
+      return;
+    }
     const endpoint =
       appMode === "saas" ? "/api/logout" : "/api/unset-provider-tokens";
     await openHands.post(endpoint);

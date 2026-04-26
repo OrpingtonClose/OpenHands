@@ -44,3 +44,4 @@ class WebClientConfig(DiscriminatedUnionMixin):
     github_app_slug: str | None
     gitlab_enabled: bool = False
     slack_enabled: bool = False
+    google_auth_enabled: bool = False

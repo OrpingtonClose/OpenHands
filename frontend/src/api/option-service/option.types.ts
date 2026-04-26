@@ -45,4 +45,5 @@ export interface WebClientConfig {
   github_app_slug: string | null;
   gitlab_enabled?: boolean;
   slack_enabled?: boolean;
+  google_auth_enabled?: boolean;
 }

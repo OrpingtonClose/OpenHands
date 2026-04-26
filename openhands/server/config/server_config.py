@@ -8,9 +8,16 @@
 # This module belongs to the old V0 web server. The V1 application server lives under openhands/app_server/.
 import os
 
+from openhands.app_server.auth.google_auth import is_google_auth_enabled
 from openhands.core.logger import openhands_logger as logger
 from openhands.server.types import AppMode, ServerConfigInterface
 from openhands.utils.import_utils import get_impl
+
+
+def _default_user_auth_class() -> str:
+    if is_google_auth_enabled():
+        return 'openhands.server.user_auth.google_user_auth.GoogleUserAuth'
+    return 'openhands.server.user_auth.default_user_auth.DefaultUserAuth'
 
 
 class ServerConfig(ServerConfigInterface):
@@ -31,9 +38,7 @@ class ServerConfig(ServerConfigInterface):
         'openhands.storage.conversation.file_conversation_store.FileConversationStore'
     )
     monitoring_listener_class: str = 'openhands.server.monitoring.MonitoringListener'
-    user_auth_class: str = (
-        'openhands.server.user_auth.default_user_auth.DefaultUserAuth'
-    )
+    user_auth_class: str = _default_user_auth_class()
     enable_v1: bool = os.getenv('ENABLE_V1') != '0'
 
     def verify_config(self):

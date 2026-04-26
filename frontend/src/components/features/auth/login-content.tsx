@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { FaUserShield } from "react-icons/fa";
+import { FaGoogle, FaUserShield } from "react-icons/fa";
 import { I18nKey } from "#/i18n/declaration";
 import OpenHandsLogoWhite from "#/assets/branding/openhands-logo-white.svg?react";
 import GitHubLogo from "#/assets/branding/github-logo.svg?react";
@@ -29,6 +29,7 @@ export interface LoginContentProps {
   buildOAuthStateData?: (
     baseStateData: Record<string, string>,
   ) => Record<string, string>;
+  googleAuthEnabled?: boolean;
 }
 
 export function LoginContent({
@@ -41,6 +42,7 @@ export function LoginContent({
   recaptchaBlocked = false,
   hasInvitation = false,
   buildOAuthStateData,
+  googleAuthEnabled = false,
 }: LoginContentProps) {
   const { t } = useTranslation();
   const { trackLoginButtonClick } = useTracking();
@@ -168,6 +170,10 @@ export function LoginContent({
   const noProvidersConfigured =
     !providersConfigured || providersConfigured.length === 0;
 
+  const handleGoogleAuth = () => {
+    window.location.href = "/api/v1/auth/google/login";
+  };
+
   const buttonBaseClasses =
     "w-[301.5px] h-10 rounded p-2 flex items-center justify-center cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed";
   const buttonLabelClasses = "text-sm font-medium leading-5 px-1";
@@ -228,11 +234,26 @@ export function LoginContent({
         )}
 
         <div className="flex flex-col items-center gap-3">
-          {noProvidersConfigured ? (
+          {googleAuthEnabled && (
+            <button
+              type="button"
+              onClick={handleGoogleAuth}
+              className={`${buttonBaseClasses} bg-white text-gray-800`}
+            >
+              <FaGoogle size={14} className="shrink-0 text-[#4285F4]" />
+              <span className={buttonLabelClasses}>
+                {t(I18nKey.GOOGLE$SIGN_IN_WITH_GOOGLE)}
+              </span>
+            </button>
+          )}
+
+          {!googleAuthEnabled && noProvidersConfigured && (
             <div className="text-center p-4 text-muted-foreground">
               {t(I18nKey.AUTH$NO_PROVIDERS_CONFIGURED)}
             </div>
-          ) : (
+          )}
+
+          {!googleAuthEnabled && !noProvidersConfigured && (
             <>
               {showGithub && (
                 <button
