@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import Field
 
+from openhands.app_server.auth.google_auth import is_google_auth_enabled
 from openhands.app_server.web_client.web_client_config_injector import (
     WebClientConfigInjector,
 )
@@ -58,6 +59,11 @@ def _get_maintenance_start_time() -> datetime | None:
         return None
 
 
+def _is_gitlab_enabled() -> bool:
+    """Return whether GitLab OAuth is configured for the web client."""
+    return bool(os.getenv('GITLAB_APP_CLIENT_ID', '').strip())
+
+
 def _get_providers_configured() -> list[ProviderType]:
     """Get configured OAuth providers from environment variables.
 
@@ -69,7 +75,7 @@ def _get_providers_configured() -> list[ProviderType]:
     if os.getenv('GITHUB_APP_CLIENT_ID', '').strip():
         providers.append(ProviderType.GITHUB)
 
-    if os.getenv('GITLAB_APP_CLIENT_ID', '').strip():
+    if _is_gitlab_enabled():
         providers.append(ProviderType.GITLAB)
 
     if os.getenv('BITBUCKET_APP_CLIENT_ID', '').strip():
@@ -89,6 +95,16 @@ def _get_github_app_slug() -> str | None:
     """
     slug = os.getenv('GITHUB_APP_SLUG', '').strip()
     return slug if slug else None
+
+
+def _get_slack_enabled() -> bool:
+    """Return whether Slack integration is fully configured for the web client."""
+    return (
+        os.getenv('SLACK_WEBHOOKS_ENABLED', 'false').lower() == 'true'
+        and bool(os.getenv('SLACK_CLIENT_ID', '').strip())
+        and bool(os.getenv('SLACK_CLIENT_SECRET', '').strip())
+        and bool(os.getenv('SLACK_SIGNING_SECRET', '').strip())
+    )
 
 
 def _get_feature_flags() -> WebClientFeatureFlags:
@@ -133,6 +149,9 @@ class DefaultWebClientConfigInjector(WebClientConfigInjector):
         ),
     )
     github_app_slug: str | None = Field(default_factory=_get_github_app_slug)
+    gitlab_enabled: bool = Field(default_factory=_is_gitlab_enabled)
+    slack_enabled: bool = Field(default_factory=_get_slack_enabled)
+    google_auth_enabled: bool = Field(default_factory=is_google_auth_enabled)
 
     async def get_web_client_config(self) -> WebClientConfig:
         from openhands.app_server.config import get_global_config
@@ -150,5 +169,8 @@ class DefaultWebClientConfigInjector(WebClientConfigInjector):
             error_message=self.error_message,
             updated_at=self.updated_at,
             github_app_slug=self.github_app_slug,
+            gitlab_enabled=self.gitlab_enabled,
+            slack_enabled=self.slack_enabled,
+            google_auth_enabled=self.google_auth_enabled,
         )
         return result

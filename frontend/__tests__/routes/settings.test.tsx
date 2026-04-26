@@ -49,6 +49,10 @@ vi.mock("react-i18next", async () => {
           SETTINGS$NAV_BILLING: "Billing",
           SETTINGS$TITLE: "Settings",
           COMMON$LANGUAGE_MODEL_LLM: "LLM",
+          SETTINGS$ORG_WIDE_SETTING_BADGE:
+            "This setting affects the whole organization",
+          SETTINGS$ORG_MANAGED_BY_ADMIN_BADGE:
+            "This setting is managed by your organization administrator",
         };
         return translations[key] || key;
       },
@@ -70,7 +74,6 @@ describe("Settings Screen", () => {
     llm_api_key: "",
     max_iterations: 100,
     llm_model: "gpt-4",
-    llm_api_key_for_byor: null,
     llm_base_url: "",
     status: "active",
     ...overrides,
@@ -123,6 +126,32 @@ describe("Settings Screen", () => {
           Component: () => <div data-testid="organization-settings-screen" />,
           path: "/settings/org",
         },
+        {
+          Component: () => <div data-testid="condenser-settings-screen" />,
+          path: "/settings/condenser",
+        },
+        {
+          Component: () => <div data-testid="verification-settings-screen" />,
+          path: "/settings/verification",
+        },
+        {
+          Component: () => (
+            <div data-testid="org-default-llm-settings-screen" />
+          ),
+          path: "/settings/org-defaults",
+        },
+        {
+          Component: () => (
+            <div data-testid="org-default-condenser-settings-screen" />
+          ),
+          path: "/settings/org-defaults/condenser",
+        },
+        {
+          Component: () => (
+            <div data-testid="org-default-verification-settings-screen" />
+          ),
+          path: "/settings/org-defaults/verification",
+        },
       ],
     },
   ]);
@@ -152,10 +181,10 @@ describe("Settings Screen", () => {
 
     const navbar = await screen.findByTestId("settings-navbar");
     sectionsToInclude.forEach((section) => {
-      const sectionElement = within(navbar).getByText(section, {
+      const sectionElements = within(navbar).getAllByText(section, {
         exact: false, // case insensitive
       });
-      expect(sectionElement).toBeInTheDocument();
+      expect(sectionElements.length).toBeGreaterThan(0);
     });
     sectionsToExclude.forEach((section) => {
       const sectionElement = within(navbar).queryByText(section, {
@@ -202,10 +231,10 @@ describe("Settings Screen", () => {
       expect(within(navbar).getByText("Billing")).toBeInTheDocument();
     });
     sectionsToInclude.forEach((section) => {
-      const sectionElement = within(navbar).getByText(section, {
+      const sectionElements = within(navbar).getAllByText(section, {
         exact: false, // case insensitive
       });
-      expect(sectionElement).toBeInTheDocument();
+      expect(sectionElements.length).toBeGreaterThan(0);
     });
     sectionsToExclude.forEach((section) => {
       const sectionElement = within(navbar).queryByText(section, {
@@ -266,7 +295,6 @@ describe("Settings Screen", () => {
         llm_api_key: "**********",
         max_iterations: 20,
         llm_model: "gpt-4",
-        llm_api_key_for_byor: null,
         llm_base_url: "https://api.openai.com",
         status: "active",
       });
@@ -307,7 +335,6 @@ describe("Settings Screen", () => {
         llm_api_key: "**********",
         max_iterations: 20,
         llm_model: "gpt-4",
-        llm_api_key_for_byor: null,
         llm_base_url: "https://api.openai.com",
         status: "active",
       });
@@ -346,7 +373,6 @@ describe("Settings Screen", () => {
         llm_api_key: "**********",
         max_iterations: 20,
         llm_model: "gpt-4",
-        llm_api_key_for_byor: null,
         llm_base_url: "https://api.openai.com",
         status: "active",
       });
@@ -410,7 +436,6 @@ describe("Settings Screen", () => {
         llm_api_key: "**********",
         max_iterations: 20,
         llm_model: "gpt-4",
-        llm_api_key_for_byor: null,
         llm_base_url: "https://api.openai.com",
         status: "active",
       });
@@ -466,7 +491,6 @@ describe("Settings Screen", () => {
         llm_api_key: "**********",
         max_iterations: 20,
         llm_model: "gpt-4",
-        llm_api_key_for_byor: null,
         llm_base_url: "https://api.openai.com",
         status: "active",
       });
@@ -602,7 +626,6 @@ describe("Settings Screen", () => {
         llm_api_key: "**********",
         max_iterations: 20,
         llm_model: "gpt-4",
-        llm_api_key_for_byor: null,
         llm_base_url: "https://api.openai.com",
         status: "active",
       });
@@ -632,7 +655,10 @@ describe("Settings Screen", () => {
       });
       useSelectedOrganizationStore.setState({ organizationId: "1" });
       // Pre-populate user data in cache so useMe() returns admin role immediately
-      mockQueryClient.setQueryData(["organizations", "1", "me"], createMockUser({ role: "admin", org_id: "1" }));
+      mockQueryClient.setQueryData(
+        ["organizations", "1", "me"],
+        createMockUser({ role: "admin", org_id: "1" }),
+      );
 
       renderSettingsScreen();
 
@@ -710,7 +736,10 @@ describe("Settings Screen", () => {
       });
       useSelectedOrganizationStore.setState({ organizationId: "1" });
       // Pre-populate user data in cache so useMe() returns admin role immediately
-      mockQueryClient.setQueryData(["organizations", "1", "me"], createMockUser({ role: "admin", org_id: "1" }));
+      mockQueryClient.setQueryData(
+        ["organizations", "1", "me"],
+        createMockUser({ role: "admin", org_id: "1" }),
+      );
 
       renderSettingsScreen();
 
@@ -798,6 +827,106 @@ describe("Settings Screen", () => {
         within(navbar).getByText("Application", { exact: false }),
       ).toBeInTheDocument();
     });
+  });
+
+  describe("OrgWideSettingsBadge display", () => {
+    const seedSaasOrgContext = (
+      org: typeof MOCK_TEAM_ORG_ACME | typeof MOCK_PERSONAL_ORG,
+      user: Partial<OrganizationMember>,
+    ) => {
+      mockQueryClient.clear();
+      mockQueryClient.setQueryData(["web-client-config"], {
+        app_mode: "saas",
+      });
+      mockQueryClient.setQueryData(["organizations"], {
+        items: [org],
+        currentOrgId: org.id,
+      });
+      useSelectedOrganizationStore.setState({ organizationId: org.id });
+      vi.spyOn(organizationService, "getOrganizations").mockResolvedValue({
+        items: [org],
+        currentOrgId: org.id,
+      });
+      vi.spyOn(organizationService, "getMe").mockResolvedValue(
+        createMockUser({ ...user, org_id: org.id }),
+      );
+    };
+
+    beforeEach(() => {
+      mockQueryClient.clear();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it.each([
+      "/settings/org-defaults",
+      "/settings/org-defaults/condenser",
+      "/settings/org-defaults/verification",
+    ])(
+      "renders the org-wide settings badge beside the title on %s for an admin in a team org in SaaS mode",
+      async (path) => {
+        seedSaasOrgContext(MOCK_TEAM_ORG_ACME, { role: "admin" });
+
+        renderSettingsScreen(path);
+
+        const badge = await screen.findByTestId("org-wide-settings-badge");
+        expect(badge).toBeInTheDocument();
+        expect(badge).toHaveTextContent(
+          "This setting affects the whole organization",
+        );
+      },
+    );
+
+    it.each([
+      "/settings/org-defaults",
+      "/settings/org-defaults/condenser",
+      "/settings/org-defaults/verification",
+    ])(
+      "renders the managed-by-admin badge on %s for a member of a team org (read-only view)",
+      async (path) => {
+        seedSaasOrgContext(MOCK_TEAM_ORG_ACME, { role: "member" });
+
+        renderSettingsScreen(path);
+
+        const badge = await screen.findByTestId("org-wide-settings-badge");
+        await waitFor(() => {
+          expect(badge).toHaveTextContent(
+            "This setting is managed by your organization administrator",
+          );
+        });
+      },
+    );
+
+    it("does not render the badge on /settings/org-defaults when the selected organization is a personal org", async () => {
+      seedSaasOrgContext(MOCK_PERSONAL_ORG, { role: "admin" });
+
+      renderSettingsScreen("/settings/org-defaults");
+
+      await screen.findByTestId("org-default-llm-settings-screen");
+      expect(
+        screen.queryByTestId("org-wide-settings-badge"),
+      ).not.toBeInTheDocument();
+    });
+
+    it.each(["/settings/condenser", "/settings/verification"])(
+      "does not render the badge on %s (personal-workspace-only route)",
+      async (path) => {
+        seedSaasOrgContext(MOCK_TEAM_ORG_ACME, { role: "admin" });
+
+        renderSettingsScreen(path);
+
+        await screen.findByTestId(
+          path === "/settings/condenser"
+            ? "condenser-settings-screen"
+            : "verification-settings-screen",
+        );
+        expect(
+          screen.queryByTestId("org-wide-settings-badge"),
+        ).not.toBeInTheDocument();
+      },
+    );
   });
 });
 

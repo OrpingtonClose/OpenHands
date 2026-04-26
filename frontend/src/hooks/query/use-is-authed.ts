@@ -9,13 +9,14 @@ export const useIsAuthed = () => {
   const isOnIntermediatePage = useIsOnIntermediatePage();
 
   const appMode = config?.app_mode;
+  const googleAuthEnabled = config?.google_auth_enabled;
 
   return useQuery({
-    queryKey: ["user", "authenticated", appMode],
+    queryKey: ["user", "authenticated", appMode, googleAuthEnabled],
     queryFn: async () => {
       try {
         // If in OSS mode or authentication succeeds, return true
-        await AuthService.authenticate(appMode!);
+        await AuthService.authenticate(appMode!, googleAuthEnabled);
         return true;
       } catch (error) {
         // If it's a 401 error, return false (not authenticated)

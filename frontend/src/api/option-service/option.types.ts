@@ -1,5 +1,7 @@
 import { Provider } from "#/types/settings";
 
+export type DeploymentMode = "cloud" | "self_hosted";
+
 /**
  * Structured response from ``GET /api/options/models``.
  *
@@ -26,6 +28,7 @@ export interface WebClientFeatureFlags {
   hide_users_page: boolean;
   hide_billing_page: boolean;
   hide_integrations_page: boolean;
+  deployment_mode?: DeploymentMode;
 }
 
 export interface WebClientConfig {
@@ -40,4 +43,7 @@ export interface WebClientConfig {
   error_message: string | null;
   updated_at: string;
   github_app_slug: string | null;
+  gitlab_enabled?: boolean;
+  slack_enabled?: boolean;
+  google_auth_enabled?: boolean;
 }
